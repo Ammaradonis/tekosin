@@ -3,8 +3,9 @@ FROM node:18-alpine AS frontend-build
 
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci
+RUN npm install --legacy-peer-deps
 COPY frontend/ ./
+ENV NODE_OPTIONS=--max-old-space-size=512
 RUN npm run build
 
 # ── Stage 2: Production backend + static frontend ───────────────────────────
@@ -16,7 +17,7 @@ WORKDIR /app
 
 # Install backend dependencies
 COPY backend/package.json backend/package-lock.json ./
-RUN npm ci --omit=dev
+RUN npm install --omit=dev
 
 # Copy backend source
 COPY backend/ ./

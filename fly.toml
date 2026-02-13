@@ -1,4 +1,9 @@
-app = 'tekosin'
+# fly.toml app configuration file generated for tekosin-wispy-water-1919 on 2026-02-13T14:27:59+01:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'tekosin-wispy-water-1919'
 primary_region = 'fra'
 
 [build]
@@ -19,3 +24,4 @@ primary_region = 'fra'
   memory = '512mb'
   cpu_kind = 'shared'
   cpus = 1
+  memory_mb = 512

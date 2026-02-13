@@ -11,4 +11,3 @@ frontend/build
 npm-debug.log*
 Thumbs.db
 .DS_Store
-fly.toml

@@ -30,7 +30,8 @@ COPY --from=frontend-build /app/frontend/build ./public
 RUN mkdir -p uploads
 
 ENV NODE_ENV=production
-ENV PORT=8080
-EXPOSE 8080
+
+# PORT is injected at runtime by Railway — do not hardcode it
+EXPOSE ${PORT:-8080}
 
 CMD ["dumb-init", "node", "server.js"]

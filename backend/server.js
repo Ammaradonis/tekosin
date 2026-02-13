@@ -20,7 +20,7 @@ const app = express();
 let dbReady = false;
 
 // ── Middleware ──────────────────────────────────────────────────────────────
-// Trust first proxy hop (Fly.io reverse proxy)
+// Trust first proxy hop (Railway / any reverse proxy)
 if (isProduction) app.set('trust proxy', 1);
 
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
@@ -69,7 +69,7 @@ app.use('/api/audit', require('./routes/audit'));
 app.use('/api/newsletters', require('./routes/newsletters'));
 app.use('/api/paypal', require('./routes/paypal'));
 
-// ── Health check (Fly.io polls this) ───────────────────────────────────────
+// ── Health check (Railway / platform health monitoring) ──────────────────────
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -99,7 +99,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-// ── Database connection with retries ───────────────────────────────────────
+// ── Database connection with retries (Railway Postgres may need wake time) ──
 const connectDB = async (maxRetries = 10, baseDelay = 3000) => {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -142,7 +142,7 @@ const startServer = async () => {
     : await findPort(parseInt(process.env.PORT) || 3001);
   const host = isProduction ? '0.0.0.0' : 'localhost';
 
-  // Bind to port IMMEDIATELY — Fly.io proxy needs this before health checks
+  // Bind to port IMMEDIATELY — platform proxy needs this before health checks
   app.listen(port, host, () => {
     console.log(`🚀 TÊKOȘÎN Admin Backend running on ${host}:${port}`);
     console.log(`   Mode: ${isProduction ? 'production' : 'development'}`);

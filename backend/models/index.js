@@ -12,7 +12,7 @@ if (process.env.DATABASE_URL) {
     dialect: 'postgres',
     logging: false,
     dialectOptions: useSSL ? { ssl: { require: true, rejectUnauthorized: false } } : {},
-    pool: { max: 20, min: 2, acquire: 30000, idle: 10000 }
+    pool: { max: 5, min: 1, acquire: 30000, idle: 10000 }
   });
 } else {
   sequelize = new Sequelize(

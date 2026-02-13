@@ -1,4 +1,8 @@
-require('dotenv').config();
+// Only load .env in development (Fly.io sets env vars via secrets/fly.toml)
+if (process.env.NODE_ENV !== 'production') {
+  require('dotenv').config();
+}
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -9,23 +13,24 @@ const cookieParser = require('cookie-parser');
 const path = require('path');
 const db = require('./models');
 
+const isProduction = process.env.NODE_ENV === 'production';
 const app = express();
 
-// Trust proxy (required behind Fly.io reverse proxy for correct IP detection and rate limiting)
-app.set('trust proxy', 1);
+// ── State ──────────────────────────────────────────────────────────────────
+let dbReady = false;
 
-// Security middleware
+// ── Middleware ──────────────────────────────────────────────────────────────
+// Trust first proxy hop (Fly.io reverse proxy)
+if (isProduction) app.set('trust proxy', 1);
+
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
 app.use(cors({
-  origin: function(origin, callback) {
-    callback(null, true);
-  },
+  origin: function(origin, callback) { callback(null, true); },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 1000,
@@ -40,17 +45,16 @@ const authLimiter = rateLimit({
 });
 app.use('/api/auth/login', authLimiter);
 
-// Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 app.use(compression());
-app.use(morgan('combined'));
+app.use(morgan(isProduction ? 'short' : 'combined'));
 
-// Static files
+// ── Static uploads ─────────────────────────────────────────────────────────
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// API Routes
+// ── API Routes ─────────────────────────────────────────────────────────────
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/members', require('./routes/members'));
@@ -65,13 +69,23 @@ app.use('/api/audit', require('./routes/audit'));
 app.use('/api/newsletters', require('./routes/newsletters'));
 app.use('/api/paypal', require('./routes/paypal'));
 
-// Health check
+// ── Health check (Fly.io polls this) ───────────────────────────────────────
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date(), uptime: process.uptime() });
+  res.json({
+    status: 'ok',
+    database: dbReady ? 'connected' : 'connecting',
+    timestamp: new Date(),
+    uptime: process.uptime()
+  });
 });
 
-// Serve frontend in production
-if (process.env.NODE_ENV === 'production') {
+// ── Catch-all for unknown /api/* — return JSON 404, never HTML ─────────────
+app.all('/api/*', (req, res) => {
+  res.status(404).json({ error: 'API endpoint not found' });
+});
+
+// ── Serve frontend (production only — built React app in ./public) ─────────
+if (isProduction) {
   const staticPath = path.join(__dirname, 'public');
   app.use(express.static(staticPath));
   app.get('*', (req, res) => {
@@ -79,13 +93,36 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// Error handling
+// ── Error handler ──────────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
   res.status(500).json({ error: 'Internal server error' });
 });
 
-// Find available port (development only)
+// ── Database connection with retries ───────────────────────────────────────
+const connectDB = async (maxRetries = 10, baseDelay = 3000) => {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await db.sequelize.authenticate();
+      console.log('✅ Database connected successfully');
+      await db.sequelize.sync({ alter: true });
+      console.log('✅ Database tables synced');
+      dbReady = true;
+      return;
+    } catch (error) {
+      const delay = Math.min(baseDelay * attempt, 30000);
+      console.error(`⏳ DB attempt ${attempt}/${maxRetries}: ${error.message}`);
+      if (attempt < maxRetries) {
+        console.log(`   Retrying in ${delay / 1000}s...`);
+        await new Promise(r => setTimeout(r, delay));
+      } else {
+        console.error('❌ All DB connection attempts exhausted. App running without DB.');
+      }
+    }
+  }
+};
+
+// ── Find available port (development only) ─────────────────────────────────
 const findPort = async (startPort) => {
   const net = require('net');
   return new Promise((resolve) => {
@@ -98,48 +135,23 @@ const findPort = async (startPort) => {
   });
 };
 
-// Connect to database with retries (Fly Postgres may be waking from zero-scale)
-let dbReady = false;
-const connectDB = async (maxRetries = 10, baseDelay = 2000) => {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      await db.sequelize.authenticate();
-      console.log('✅ Database connected successfully');
-      await db.sequelize.sync({ alter: true });
-      console.log('✅ Database tables synced');
-      dbReady = true;
-      return;
-    } catch (error) {
-      const delay = Math.min(baseDelay * attempt, 30000);
-      console.error(`⏳ DB connection attempt ${attempt}/${maxRetries} failed: ${error.message}`);
-      if (attempt < maxRetries) {
-        console.log(`   Retrying in ${delay / 1000}s...`);
-        await new Promise(r => setTimeout(r, delay));
-      } else {
-        console.error('❌ All DB connection attempts failed. App running without DB.');
-      }
-    }
-  }
-};
-
-// Start server - bind to port FIRST, then connect DB in background
+// ── Start ──────────────────────────────────────────────────────────────────
 const startServer = async () => {
-  const isProduction = process.env.NODE_ENV === 'production';
   const port = isProduction
     ? (parseInt(process.env.PORT) || 8080)
     : await findPort(parseInt(process.env.PORT) || 3001);
   const host = isProduction ? '0.0.0.0' : 'localhost';
 
-  // Start listening IMMEDIATELY so Fly.io health checks pass
+  // Bind to port IMMEDIATELY — Fly.io proxy needs this before health checks
   app.listen(port, host, () => {
     console.log(`🚀 TÊKOȘÎN Admin Backend running on ${host}:${port}`);
-    console.log(`📡 API: http://${host}:${port}/api`);
-    console.log(`🏥 Health: http://${host}:${port}/api/health`);
+    console.log(`   Mode: ${isProduction ? 'production' : 'development'}`);
+    console.log(`   API:  http://${host}:${port}/api`);
   });
 
-  // Connect to DB in background with retries
+  // Connect to DB in background (non-blocking so port stays open)
   connectDB().catch(err => {
-    console.error('❌ DB background connection error:', err.message);
+    console.error('❌ DB background error:', err.message);
   });
 };
 

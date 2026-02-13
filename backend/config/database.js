@@ -21,12 +21,12 @@ module.exports = {
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
     host: process.env.DB_HOST,
-    port: parseInt(process.env.DB_PORT || '5433'),
+    port: parseInt(process.env.DB_PORT || '5432'),
     dialect: 'postgres',
     logging: false,
     pool: {
-      max: 30,
-      min: 10,
+      max: 5,
+      min: 1,
       acquire: 30000,
       idle: 10000
     }

@@ -1,8 +1,3 @@
-# fly.toml app configuration file generated for tekosin-wispy-water-1919 on 2026-02-13T14:27:59+01:00
-#
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
-#
-
 app = 'tekosin-wispy-water-1919'
 primary_region = 'fra'
 
@@ -17,11 +12,22 @@ primary_region = 'fra'
   force_https = true
   auto_stop_machines = 'stop'
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1
   processes = ['app']
 
+  [http_service.concurrency]
+    type = 'requests'
+    hard_limit = 250
+    soft_limit = 200
+
+[[http_service.checks]]
+  grace_period = '10s'
+  interval = '30s'
+  method = 'GET'
+  timeout = '5s'
+  path = '/api/health'
+
 [[vm]]
-  memory = '512mb'
   cpu_kind = 'shared'
   cpus = 1
   memory_mb = 512

@@ -11,6 +11,9 @@ const db = require('./models');
 
 const app = express();
 
+// Trust proxy (required behind Fly.io reverse proxy for correct IP detection and rate limiting)
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
 app.use(cors({

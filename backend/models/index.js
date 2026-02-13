@@ -6,12 +6,12 @@ const dbConfig = config[env];
 
 let sequelize;
 if (process.env.DATABASE_URL) {
-  sequelize = new Sequelize(process.env.DATABASE_URL, {
+  const dbUrl = process.env.DATABASE_URL;
+  const useSSL = !dbUrl.includes('sslmode=disable') && process.env.DB_SSL !== 'false';
+  sequelize = new Sequelize(dbUrl, {
     dialect: 'postgres',
     logging: false,
-    dialectOptions: {
-      ssl: process.env.DB_SSL === 'false' ? false : { require: true, rejectUnauthorized: false }
-    },
+    dialectOptions: useSSL ? { ssl: { require: true, rejectUnauthorized: false } } : {},
     pool: { max: 20, min: 2, acquire: 30000, idle: 10000 }
   });
 } else {

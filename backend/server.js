@@ -69,9 +69,10 @@ app.get('/api/health', (req, res) => {
 
 // Serve frontend in production
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../frontend/build')));
+  const staticPath = path.join(__dirname, 'public');
+  app.use(express.static(staticPath));
   app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
+    res.sendFile(path.join(staticPath, 'index.html'));
   });
 }
 
@@ -81,7 +82,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-// Find available port
+// Find available port (development only)
 const findPort = async (startPort) => {
   const net = require('net');
   return new Promise((resolve) => {
@@ -105,11 +106,16 @@ const startServer = async () => {
     await db.sequelize.sync({ alter: true });
     console.log('✅ Database tables synced');
 
-    const port = await findPort(parseInt(process.env.PORT) || 3001);
-    app.listen(port, () => {
-      console.log(`🚀 TÊKOȘÎN Admin Backend running on port ${port}`);
-      console.log(`📡 API: http://localhost:${port}/api`);
-      console.log(`🏥 Health: http://localhost:${port}/api/health`);
+    const isProduction = process.env.NODE_ENV === 'production';
+    const port = isProduction
+      ? (parseInt(process.env.PORT) || 8080)
+      : await findPort(parseInt(process.env.PORT) || 3001);
+    const host = isProduction ? '0.0.0.0' : 'localhost';
+
+    app.listen(port, host, () => {
+      console.log(`🚀 TÊKOȘÎN Admin Backend running on ${host}:${port}`);
+      console.log(`📡 API: http://${host}:${port}/api`);
+      console.log(`🏥 Health: http://${host}:${port}/api/health`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);

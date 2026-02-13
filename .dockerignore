@@ -1,0 +1,14 @@
+node_modules
+frontend/node_modules
+frontend/build
+.git
+.gitignore
+.env
+*.md
+.vscode
+.idea
+*.log
+npm-debug.log*
+Thumbs.db
+.DS_Store
+fly.toml

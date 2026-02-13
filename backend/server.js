@@ -95,32 +95,49 @@ const findPort = async (startPort) => {
   });
 };
 
-// Start server
-const startServer = async () => {
-  try {
-    // Test DB connection
-    await db.sequelize.authenticate();
-    console.log('✅ Database connected successfully');
-
-    // Sync models (create tables)
-    await db.sequelize.sync({ alter: true });
-    console.log('✅ Database tables synced');
-
-    const isProduction = process.env.NODE_ENV === 'production';
-    const port = isProduction
-      ? (parseInt(process.env.PORT) || 8080)
-      : await findPort(parseInt(process.env.PORT) || 3001);
-    const host = isProduction ? '0.0.0.0' : 'localhost';
-
-    app.listen(port, host, () => {
-      console.log(`🚀 TÊKOȘÎN Admin Backend running on ${host}:${port}`);
-      console.log(`📡 API: http://${host}:${port}/api`);
-      console.log(`🏥 Health: http://${host}:${port}/api/health`);
-    });
-  } catch (error) {
-    console.error('❌ Failed to start server:', error);
-    process.exit(1);
+// Connect to database with retries (Fly Postgres may be waking from zero-scale)
+let dbReady = false;
+const connectDB = async (maxRetries = 10, baseDelay = 2000) => {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await db.sequelize.authenticate();
+      console.log('✅ Database connected successfully');
+      await db.sequelize.sync({ alter: true });
+      console.log('✅ Database tables synced');
+      dbReady = true;
+      return;
+    } catch (error) {
+      const delay = Math.min(baseDelay * attempt, 30000);
+      console.error(`⏳ DB connection attempt ${attempt}/${maxRetries} failed: ${error.message}`);
+      if (attempt < maxRetries) {
+        console.log(`   Retrying in ${delay / 1000}s...`);
+        await new Promise(r => setTimeout(r, delay));
+      } else {
+        console.error('❌ All DB connection attempts failed. App running without DB.');
+      }
+    }
   }
+};
+
+// Start server - bind to port FIRST, then connect DB in background
+const startServer = async () => {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const port = isProduction
+    ? (parseInt(process.env.PORT) || 8080)
+    : await findPort(parseInt(process.env.PORT) || 3001);
+  const host = isProduction ? '0.0.0.0' : 'localhost';
+
+  // Start listening IMMEDIATELY so Fly.io health checks pass
+  app.listen(port, host, () => {
+    console.log(`🚀 TÊKOȘÎN Admin Backend running on ${host}:${port}`);
+    console.log(`📡 API: http://${host}:${port}/api`);
+    console.log(`🏥 Health: http://${host}:${port}/api/health`);
+  });
+
+  // Connect to DB in background with retries
+  connectDB().catch(err => {
+    console.error('❌ DB background connection error:', err.message);
+  });
 };
 
 startServer();

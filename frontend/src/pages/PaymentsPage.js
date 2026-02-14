@@ -66,8 +66,8 @@ const SuccessModal = ({ data, onClose }) => {
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="glass-card p-8 w-full max-w-md animate-bounce-in text-center">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-start justify-center overflow-y-auto p-4 py-8">
+      <div className="glass-card p-8 w-full max-w-md animate-bounce-in text-center my-auto">
         <div className="text-6xl mb-4 animate-explosion">🎉</div>
         <h2 className="text-2xl font-black neon-text mb-2">PAYMENT SUCCESSFUL!</h2>
         <p className="text-neon-green font-bold text-xl mb-1">€{Number(data?.amount || 0).toFixed(2)} EUR</p>
@@ -468,8 +468,8 @@ const PaymentsPage = () => {
 
       {/* ═══ DONATE MODAL with PayPal Popup ═══ */}
       {showDonateModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="glass-card p-6 w-full max-w-md animate-bounce-in">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-start justify-center overflow-y-auto p-4 py-8">
+          <div className="glass-card p-6 w-full max-w-md animate-bounce-in my-auto">
             <h2 className="text-xl font-black neon-text mb-1 flex items-center gap-2"><FiZap className="animate-pulse" /> PayPal {t('payments.donate')}</h2>
             <p className="text-xs text-neon-red font-bold animate-pulse mb-4">🚨 {t('crisis.urgent')} — EVERY EURO SAVES LIVES!</p>
 
@@ -519,8 +519,8 @@ const PaymentsPage = () => {
 
       {/* ═══ REFUND MODAL ═══ */}
       {showRefundModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="glass-card p-6 w-full max-w-md animate-bounce-in">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-start justify-center overflow-y-auto p-4 py-8">
+          <div className="glass-card p-6 w-full max-w-md animate-bounce-in my-auto">
             <h2 className="text-xl font-black text-red-400 mb-2 flex items-center gap-2"><FiXCircle /> Refund Payment</h2>
             <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 mb-4">
               <p className="text-sm font-bold text-red-400">€{Number(showRefundModal.amount).toFixed(2)} EUR</p>
@@ -558,8 +558,8 @@ const PaymentsPage = () => {
 
       {/* ═══ MANUAL PAYMENT MODAL ═══ */}
       {showManualModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="glass-card p-6 w-full max-w-md animate-bounce-in">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-start justify-center overflow-y-auto p-4 py-8">
+          <div className="glass-card p-6 w-full max-w-md animate-bounce-in my-auto">
             <h2 className="text-xl font-black neon-text-cyan mb-4">Record Manual Payment</h2>
             <form onSubmit={handleManualPayment} className="space-y-4">
               <input type="number" step="0.01" min="0.01" value={manualData.amount} onChange={(e) => setManualData({ ...manualData, amount: e.target.value })} className="neon-input" placeholder="Amount (EUR)" required />

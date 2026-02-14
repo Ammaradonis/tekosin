@@ -16,12 +16,13 @@ WORKDIR /app
 COPY backend/package.json backend/package-lock.json ./
 RUN npm install --omit=dev
 
-# Copy backend source (excluding seeders, .env, dev-only files)
+# Copy backend source
 COPY backend/server.js ./server.js
 COPY backend/config/ ./config/
 COPY backend/middleware/ ./middleware/
 COPY backend/models/ ./models/
 COPY backend/routes/ ./routes/
+COPY backend/seeders/ ./seeders/
 
 # Copy built frontend into backend's public directory
 COPY --from=frontend-build /app/frontend/build ./public

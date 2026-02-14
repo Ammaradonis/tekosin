@@ -7,8 +7,7 @@ module.exports = (sequelize, DataTypes) => {
     },
     paypalOrderId: {
       type: DataTypes.STRING,
-      allowNull: true,
-      unique: true
+      allowNull: true
     },
     paypalCaptureId: {
       type: DataTypes.STRING,

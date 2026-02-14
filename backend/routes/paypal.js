@@ -7,14 +7,24 @@ const { authenticateToken, authorize } = require('../middleware/auth');
 const { Op } = require('sequelize');
 
 // ─── LIVE PayPal Configuration ───────────────────────────────────────────────
-const PAYPAL_API = 'https://api-m.paypal.com';
+const PAYPAL_API = process.env.PAYPAL_API || 'https://api-m.paypal.com';
 const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID;
 const PAYPAL_SECRET = process.env.PAYPAL_SECRET || process.env.PAYPAL_CLIENT_SECRET;
-const RETRY_DELAYS = [1000, 3000, 7000]; // exponential backoff: 1s, 3s, 7s
+const RETRY_DELAYS = [2000, 5000, 10000]; // exponential backoff: 2s, 5s, 10s
 const MAX_RETRIES = 3;
+const REQUEST_TIMEOUT = 30000; // 30s — PayPal live API can be slow
 
-// ─── Helper: get PayPal OAuth2 access token with retries ─────────────────────
+// ─── Token cache (avoid fetching on every single request) ────────────────────
+let cachedToken = null;
+let tokenExpiresAt = 0;
+
+// ─── Helper: get PayPal OAuth2 access token (cached, with retries) ───────────
 async function getAccessToken(attempt = 0) {
+  // Return cached token if still valid (with 60s safety margin)
+  if (cachedToken && Date.now() < tokenExpiresAt - 60000) {
+    return cachedToken;
+  }
+
   try {
     const auth = Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_SECRET}`).toString('base64');
     const response = await axios.post(
@@ -25,13 +35,20 @@ async function getAccessToken(attempt = 0) {
           Authorization: `Basic ${auth}`,
           'Content-Type': 'application/x-www-form-urlencoded'
         },
-        timeout: 15000
+        timeout: REQUEST_TIMEOUT
       }
     );
-    return response.data.access_token;
+    cachedToken = response.data.access_token;
+    // PayPal tokens typically expire in ~9 hours (32400s)
+    tokenExpiresAt = Date.now() + (response.data.expires_in || 32400) * 1000;
+    return cachedToken;
   } catch (error) {
+    // Invalidate cache on failure
+    cachedToken = null;
+    tokenExpiresAt = 0;
+
     if (attempt < MAX_RETRIES) {
-      const delay = RETRY_DELAYS[attempt] || 7000;
+      const delay = RETRY_DELAYS[attempt] || 10000;
       console.error(`[PayPal] getAccessToken retry ${attempt + 1}/${MAX_RETRIES} in ${delay}ms:`, error.message);
       await logPaypalError('getAccessToken', error, { attempt });
       await new Promise(r => setTimeout(r, delay));
@@ -54,26 +71,40 @@ async function paypalRequest(method, path, data = null, attempt = 0) {
         'Content-Type': 'application/json',
         'PayPal-Request-Id': `tekosin-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`
       },
-      timeout: 20000
+      timeout: REQUEST_TIMEOUT
     };
     if (data) config.data = data;
     const response = await axios(config);
     return response;
   } catch (error) {
-    const isNetworkError = error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' ||
+    const status = error.response?.status;
+    const isRetryable =
+      error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' ||
       error.code === 'ECONNABORTED' || error.code === 'ENOTFOUND' ||
-      error.response?.status >= 500 || error.message?.includes('Network Error');
+      error.code === 'ERR_BAD_RESPONSE' ||
+      status >= 500 || status === 429 ||
+      error.message?.includes('timeout') || error.message?.includes('Network Error');
 
-    if (attempt < MAX_RETRIES && isNetworkError) {
-      const delay = RETRY_DELAYS[attempt] || 7000;
-      console.error(`[PayPal] ${method.toUpperCase()} ${path} retry ${attempt + 1}/${MAX_RETRIES} in ${delay}ms:`, error.message);
+    // On 401, invalidate token cache and retry once
+    if (status === 401 && attempt === 0) {
+      console.log('[PayPal] Token expired, refreshing...');
+      cachedToken = null;
+      tokenExpiresAt = 0;
+      return paypalRequest(method, path, data, attempt + 1);
+    }
+
+    if (attempt < MAX_RETRIES && isRetryable) {
+      // On 429, use Retry-After header if available
+      const retryAfter = error.response?.headers?.['retry-after'];
+      const delay = retryAfter ? parseInt(retryAfter) * 1000 : (RETRY_DELAYS[attempt] || 10000);
+      console.error(`[PayPal] ${method.toUpperCase()} ${path} retry ${attempt + 1}/${MAX_RETRIES} in ${delay}ms (status=${status || error.code}):`, error.message);
       await logPaypalError(`paypalRequest:${method}:${path}`, error, { attempt, data });
       await new Promise(r => setTimeout(r, delay));
       return paypalRequest(method, path, data, attempt + 1);
     }
 
     console.error(`[PayPal] ${method.toUpperCase()} ${path} FAILED:`, {
-      status: error.response?.status,
+      status,
       data: error.response?.data,
       message: error.message,
       code: error.code,
@@ -399,8 +430,8 @@ router.post('/create-subscription', authenticateToken, async (req, res) => {
         locale: 'de-AT',
         shipping_preference: 'NO_SHIPPING',
         user_action: 'SUBSCRIBE_NOW',
-        return_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/payments?subscription=success`,
-        cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/payments?subscription=cancelled`
+        return_url: `${process.env.FRONTEND_URL || 'https://tekosinlgbtiq.com'}/payments?subscription=success`,
+        cancel_url: `${process.env.FRONTEND_URL || 'https://tekosinlgbtiq.com'}/payments?subscription=cancelled`
       }
     };
 
@@ -635,19 +666,28 @@ router.post('/refund/:captureId', authenticateToken, authorize('payments:refund'
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // POST /api/paypal/webhook
-router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+// NOTE: global express.json() already parsed req.body — no need for express.raw()
+router.post('/webhook', async (req, res) => {
+  // Respond to PayPal immediately — process async to avoid their timeout
+  res.status(200).json({ received: true });
+
   try {
-    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    const body = req.body;
     const eventType = body.event_type;
     const resource = body.resource;
     const eventId = body.id;
 
     console.log(`[PayPal Webhook] Event: ${eventType}, ID: ${eventId}`);
 
+    if (!eventType || !eventId) {
+      console.error('[PayPal Webhook] Missing event_type or id');
+      return;
+    }
+
     // Duplicate prevention
     if (await isDuplicateWebhookEvent(eventId)) {
       console.log(`[PayPal Webhook] Duplicate event ${eventId}, skipping`);
-      return res.status(200).json({ received: true, duplicate: true });
+      return;
     }
 
     // Webhook signature verification
@@ -665,11 +705,14 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         };
         const verifyResponse = await paypalRequest('post', '/v1/notifications/verify-webhook-signature', verifyData);
         if (verifyResponse.data.verification_status !== 'SUCCESS') {
-          console.error('[PayPal Webhook] Signature verification FAILED');
-          return res.status(401).json({ error: 'Invalid webhook signature' });
+          console.error(`[PayPal Webhook] Signature verification FAILED for event ${eventId}`);
+          await logPaypalError('webhook-signature', new Error('Signature verification failed'), { eventId, eventType });
+          return;
         }
+        console.log(`[PayPal Webhook] Signature verified for event ${eventId}`);
       } catch (verifyErr) {
-        console.error('[PayPal Webhook] Signature verification error:', verifyErr.message);
+        // Log but don't block — PayPal verify endpoint can be flaky
+        console.error('[PayPal Webhook] Signature verification error (non-fatal):', verifyErr.message);
       }
     }
 
@@ -785,11 +828,11 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         console.log(`[PayPal Webhook] Unhandled event type: ${eventType}`);
     }
 
-    res.status(200).json({ received: true, eventType });
+    console.log(`[PayPal Webhook] Processed event: ${eventType}`);
   } catch (error) {
     console.error('[PayPal Webhook] Processing error:', error.message);
-    await logPaypalError('webhook', error, { body: req.body });
-    res.status(200).json({ received: true, error: error.message });
+    try { await logPaypalError('webhook', error, { body: req.body }); } catch (e) { /* ignore */ }
+    // Response already sent — just log
   }
 });
 

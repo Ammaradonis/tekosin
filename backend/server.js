@@ -45,7 +45,15 @@ const authLimiter = rateLimit({
 });
 app.use('/api/auth/login', authLimiter);
 
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({
+  limit: '10mb',
+  verify: (req, res, buf) => {
+    // Preserve raw body for PayPal webhook signature verification
+    if (req.originalUrl === '/api/paypal/webhook') {
+      req.rawBody = buf.toString();
+    }
+  }
+}));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 app.use(compression());

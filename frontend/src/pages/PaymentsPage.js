@@ -4,57 +4,188 @@ import api from '../services/api';
 import toast from 'react-hot-toast';
 import { FiDollarSign, FiRefreshCw, FiDownload, FiFilter, FiPlus, FiChevronLeft, FiChevronRight, FiClock, FiZap, FiActivity, FiRepeat, FiAlertTriangle, FiCheckCircle, FiXCircle } from 'react-icons/fi';
 
-// ─── PayPal Button Component ─────────────────────────────────────────────────
-const PayPalButtonWrapper = ({ amount, description, onSuccess, onError }) => {
-  const containerRef = useRef(null);
-  const renderedRef = useRef(false);
+// ─── Detect visitor country via IP (cached) ─────────────────────────────────
+let detectedCountry = null;
+const detectCountry = async () => {
+  if (detectedCountry) return detectedCountry;
+  try {
+    const res = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(5000) });
+    const data = await res.json();
+    detectedCountry = {
+      countryCode: data.country_code || 'AT',
+      phoneCode: data.country_calling_code || '+43'
+    };
+  } catch {
+    detectedCountry = { countryCode: 'AT', phoneCode: '+43' };
+  }
+  return detectedCountry;
+};
 
+// ─── PayPal Buttons + Inline Card Fields Component ──────────────────────────
+const PayPalButtonWrapper = ({ amount, description, onSuccess, onError }) => {
+  const buttonsRef = useRef(null);
+  const cardContainerRef = useRef(null);
+  const renderedRef = useRef(false);
+  const [cardFieldsInstance, setCardFieldsInstance] = useState(null);
+  const [showCardForm, setShowCardForm] = useState(false);
+  const [cardSubmitting, setCardSubmitting] = useState(false);
+  const [visitorCountry, setVisitorCountry] = useState(null);
+
+  // Detect country on mount
   useEffect(() => {
-    if (!window.paypal_sdk || !containerRef.current || renderedRef.current) return;
+    detectCountry().then(setVisitorCountry);
+  }, []);
+
+  // Shared createOrder function
+  const createOrder = async () => {
+    const res = await api.post('/paypal/create-order', {
+      amount: parseFloat(amount).toFixed(2),
+      description: description || 'TÊKOȘÎN Donation'
+    });
+    return res.data.orderId;
+  };
+
+  // Shared onApprove function
+  const onApprove = async (data) => {
+    try {
+      const res = await api.post('/paypal/capture-order', { orderId: data.orderID });
+      onSuccess && onSuccess(res.data);
+    } catch (err) {
+      console.error('[PayPal] capture error:', err);
+      onError && onError(err.response?.data?.error || 'Network error. Please try again.');
+    }
+  };
+
+  // Render PayPal wallet buttons
+  useEffect(() => {
+    if (!window.paypal_sdk || !buttonsRef.current || renderedRef.current) return;
     if (!amount || parseFloat(amount) < 0.01) return;
 
     renderedRef.current = true;
-    containerRef.current.innerHTML = '';
+    buttonsRef.current.innerHTML = '';
 
     window.paypal_sdk.Buttons({
       style: { layout: 'vertical', color: 'black', shape: 'rect', label: 'donate', height: 45 },
-      createOrder: async () => {
-        try {
-          const res = await api.post('/paypal/create-order', {
-            amount: parseFloat(amount).toFixed(2),
-            description: description || 'TÊKOȘÎN Donation'
-          });
-          return res.data.orderId;
-        } catch (err) {
-          console.error('[PayPal] createOrder error:', err);
-          onError && onError(err.response?.data?.error || 'Network error. Please try again.');
-          throw err;
-        }
-      },
-      onApprove: async (data) => {
-        try {
-          const res = await api.post('/paypal/capture-order', { orderId: data.orderID });
-          onSuccess && onSuccess(res.data);
-        } catch (err) {
-          console.error('[PayPal] capture error:', err);
-          onError && onError(err.response?.data?.error || 'Network error. Please try again.');
-        }
-      },
-      onCancel: () => {
-        toast('Payment cancelled', { icon: '⚠️' });
-      },
+      createOrder,
+      onApprove,
+      onCancel: () => { toast('Payment cancelled', { icon: '⚠️' }); },
       onError: (err) => {
         console.error('[PayPal] Button error:', err);
         onError && onError('PayPal encountered an error. Please try again.');
       }
-    }).render(containerRef.current).catch(err => {
+    }).render(buttonsRef.current).catch(err => {
       console.error('[PayPal] Render error:', err);
     });
 
     return () => { renderedRef.current = false; };
   }, [amount, description, onSuccess, onError]);
 
-  return <div ref={containerRef} className="min-h-[50px]" />;
+  // Initialize CardFields when user clicks "Debit or Credit Card"
+  useEffect(() => {
+    if (!showCardForm || !window.paypal_sdk?.CardFields || !cardContainerRef.current) return;
+    if (cardFieldsInstance) return;
+
+    try {
+      const fields = window.paypal_sdk.CardFields({
+        createOrder,
+        onApprove,
+        onError: (err) => {
+          console.error('[PayPal CardFields] error:', err);
+          setCardSubmitting(false);
+          onError && onError('Card payment failed. Please try again.');
+        },
+        style: {
+          input: {
+            'font-size': '16px',
+            'font-family': 'system-ui, -apple-system, sans-serif',
+            color: '#ffffff',
+            'background-color': '#1a1a2e'
+          },
+          '.invalid': { color: '#ef4444' }
+        }
+      });
+
+      if (fields.isEligible()) {
+        fields.NameField({ placeholder: 'Cardholder name' }).render(cardContainerRef.current);
+        fields.NumberField({ placeholder: 'Card number' }).render(cardContainerRef.current);
+        fields.ExpiryField({ placeholder: 'MM / YY' }).render(cardContainerRef.current);
+        fields.CVVField({ placeholder: 'CSC' }).render(cardContainerRef.current);
+        setCardFieldsInstance(fields);
+      } else {
+        console.warn('[PayPal] CardFields not eligible for this merchant');
+        onError && onError('Card payments are not available. Please use PayPal.');
+      }
+    } catch (err) {
+      console.error('[PayPal CardFields] init error:', err);
+    }
+  }, [showCardForm, amount, description]);
+
+  const handleCardSubmit = async () => {
+    if (!cardFieldsInstance || cardSubmitting) return;
+    setCardSubmitting(true);
+    try {
+      await cardFieldsInstance.submit({
+        billingAddress: {
+          countryCode: visitorCountry?.countryCode || 'AT'
+        }
+      });
+    } catch (err) {
+      console.error('[PayPal CardFields] submit error:', err);
+      onError && onError(err.message || 'Card payment failed.');
+    } finally {
+      setCardSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      {/* PayPal wallet buttons */}
+      <div ref={buttonsRef} className="min-h-[50px]" />
+
+      {/* Debit/Credit Card toggle */}
+      {!showCardForm ? (
+        <button
+          type="button"
+          onClick={() => setShowCardForm(true)}
+          className="w-full py-3 rounded-xl font-bold text-sm bg-tekosin-card border border-tekosin-border hover:border-neon-cyan/40 transition-all flex items-center justify-center gap-2 text-gray-300"
+        >
+          💳 Debit or Credit Card
+        </button>
+      ) : (
+        <div className="border border-tekosin-border rounded-xl p-4 space-y-3 bg-tekosin-card/50">
+          <p className="text-xs font-bold text-neon-cyan text-center">💳 Debit or Credit Card</p>
+          <div ref={cardContainerRef} className="space-y-2 [&>div]:rounded-lg [&>div]:border [&>div]:border-tekosin-border [&>div]:overflow-hidden [&>div]:min-h-[45px]" />
+          {visitorCountry && (
+            <p className="text-xs text-gray-500 text-center">
+              Billing country: {visitorCountry.countryCode} • Phone: {visitorCountry.phoneCode}
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={handleCardSubmit}
+            disabled={cardSubmitting || !cardFieldsInstance}
+            className="w-full py-3 rounded-xl font-bold text-sm bg-blue-600 hover:bg-blue-700 text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {cardSubmitting ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Processing...
+              </span>
+            ) : (
+              `Pay €${parseFloat(amount || 0).toFixed(2)}`
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => { setShowCardForm(false); setCardFieldsInstance(null); }}
+            className="w-full text-xs text-gray-500 hover:text-gray-300 transition-all"
+          >
+            ← Back to PayPal
+          </button>
+        </div>
+      )}
+    </div>
+  );
 };
 
 // ─── Success Modal ───────────────────────────────────────────────────────────

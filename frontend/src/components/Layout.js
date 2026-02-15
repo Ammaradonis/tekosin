@@ -16,9 +16,9 @@ const Layout = () => {
       <CrisisBanner />
       <div className="flex flex-1">
         <Sidebar />
-        <div className={`flex-1 flex flex-col transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-16'}`}>
+        <div className={`flex-1 flex flex-col transition-all duration-300 ${sidebarOpen ? 'md:ml-64' : 'md:ml-16'}`}>
           <Header />
-          <main className="flex-1 p-6 overflow-auto">
+          <main className="flex-1 p-3 md:p-6 overflow-auto">
             <AnimatePresence mode="wait">
               <motion.div
                 key={location.pathname}

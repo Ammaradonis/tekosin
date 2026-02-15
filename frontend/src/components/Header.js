@@ -32,20 +32,20 @@ const Header = () => {
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-tekosin-dark/80 backdrop-blur-xl border-b border-tekosin-border px-6 py-3">
+    <header className="sticky top-0 z-30 bg-tekosin-dark/80 backdrop-blur-xl border-b border-tekosin-border px-3 md:px-6 py-2 md:py-3">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h2 className="text-sm font-bold text-neon-pink/70 uppercase tracking-wider">
+        <div className="flex items-center gap-3 pl-8 md:pl-0">
+          <h2 className="text-xs md:text-sm font-bold text-neon-pink/70 uppercase tracking-wider truncate">
             {t('app.subtitle')}
           </h2>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-4">
           {/* Language Selector */}
           <div className="relative group">
-            <button className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-tekosin-card transition-colors text-sm">
+            <button className="flex items-center gap-1.5 px-2 md:px-3 py-2 rounded-lg hover:bg-tekosin-card transition-colors text-sm">
               <FiGlobe className="text-neon-cyan" size={16} />
-              <span>{languages.find(l => l.code === i18n.language)?.label || 'Deutsch'}</span>
+              <span className="hidden md:inline">{languages.find(l => l.code === i18n.language)?.label || 'Deutsch'}</span>
             </button>
             <div className="absolute right-0 top-full mt-1 bg-tekosin-card border border-tekosin-border rounded-lg shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 min-w-[140px] z-50">
               {languages.map((lang) => (

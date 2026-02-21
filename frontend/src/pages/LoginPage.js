@@ -12,6 +12,17 @@ const LoginPage = () => {
   const { loading, error } = useSelector((state) => state.auth);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [copiedKey, setCopiedKey] = useState('');
+
+  const copyValue = async (key, value) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(''), 1200);
+    } catch (e) {
+      setCopiedKey('');
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -134,9 +145,36 @@ const LoginPage = () => {
           </p>
           <div className="border-t border-tekosin-border/60 pt-3 space-y-1">
             <p className="text-sm font-bold text-neon-cyan">{t('footer.supportCta')}</p>
-            <p className="text-xs text-gray-300">{t('footer.bankName')}</p>
-            <p className="text-xs text-gray-300">{t('footer.iban')}</p>
-            <p className="text-xs text-gray-300">{t('footer.bic')}</p>
+            <div className="flex items-center justify-center gap-3">
+              <p className="text-xs text-gray-300">Têkosin LGBTIQ - Verein für LGBT</p>
+              <button
+                type="button"
+                onClick={() => copyValue('bank', 'Têkosin LGBTIQ - Verein für LGBT')}
+                className="px-4 py-1 rounded-md bg-neon-cyan text-black font-black text-xs hover:opacity-90 transition-opacity"
+              >
+                {copiedKey === 'bank' ? 'COPIED' : 'COPY'}
+              </button>
+            </div>
+            <div className="flex items-center justify-center gap-3">
+              <p className="text-xs text-gray-300">AT371700000141011537</p>
+              <button
+                type="button"
+                onClick={() => copyValue('iban', 'AT371700000141011537')}
+                className="px-4 py-1 rounded-md bg-neon-cyan text-black font-black text-xs hover:opacity-90 transition-opacity"
+              >
+                {copiedKey === 'iban' ? 'COPIED' : 'COPY'}
+              </button>
+            </div>
+            <div className="flex items-center justify-center gap-3">
+              <p className="text-xs text-gray-300">BIC: BFKKAT2K</p>
+              <button
+                type="button"
+                onClick={() => copyValue('bic', 'BFKKAT2K')}
+                className="px-4 py-1 rounded-md bg-neon-cyan text-black font-black text-xs hover:opacity-90 transition-opacity"
+              >
+                {copiedKey === 'bic' ? 'COPIED' : 'COPY'}
+              </button>
+            </div>
           </div>
         </div>
       </div>

@@ -17,9 +17,6 @@ const resources = {
         madeWith: 'Made with passion by Anna & Müco',
         noHousing: 'Diese NGO bietet KEINE Unterkunft oder Rechtsberatung an.',
         supportCta: 'Support queer safety, dignity, and joy in Vienna with your donation.',
-        bankName: 'Têkosin LGBTIQ - Verein für LGBT',
-        iban: 'AT37 1700 0001 4101 1537',
-        bic: 'BIC: BFKKAT2K'
       },
       gdpr: { consent: 'DSGVO-Einwilligung', rightToForget: 'Recht auf Vergessenwerden', dataPortability: 'Datenübertragbarkeit', consentText: 'Ich stimme der Verarbeitung meiner Daten zu.' }
     }
@@ -38,9 +35,6 @@ const resources = {
         madeWith: 'Made with passion by Anna & Müco',
         noHousing: 'This NGO does NOT offer housing or legal consultations.',
         supportCta: 'Support queer safety, dignity, and joy in Vienna with your donation.',
-        bankName: 'Têkosin LGBTIQ - Verein für LGBT',
-        iban: 'AT37 1700 0001 4101 1537',
-        bic: 'BIC: BFKKAT2K'
       },
       gdpr: { consent: 'GDPR Consent', rightToForget: 'Right to be Forgotten', dataPortability: 'Data Portability', consentText: 'I consent to the processing of my data.' }
     }
@@ -59,9 +53,6 @@ const resources = {
         madeWith: 'Made with passion by Anna & Müco',
         noHousing: 'Bu STK konut veya hukuki danışmanlık SUNMAMAKTADIR.',
         supportCta: 'Support queer safety, dignity, and joy in Vienna with your donation.',
-        bankName: 'Têkosin LGBTIQ - Verein für LGBT',
-        iban: 'AT37 1700 0001 4101 1537',
-        bic: 'BIC: BFKKAT2K'
       },
       gdpr: { consent: 'KVKK Onayı', rightToForget: 'Unutulma Hakkı', dataPortability: 'Veri Taşınabilirliği', consentText: 'Verilerimin işlenmesine onay veriyorum.' }
     }
@@ -78,9 +69,6 @@ const resources = {
         madeWith: 'Made with passion by Anna & Müco',
         noHousing: 'هذه المنظمة لا تقدم السكن أو الاستشارات القانونية.',
         supportCta: 'Support queer safety, dignity, and joy in Vienna with your donation.',
-        bankName: 'Têkosin LGBTIQ - Verein für LGBT',
-        iban: 'AT37 1700 0001 4101 1537',
-        bic: 'BIC: BFKKAT2K'
       },
       members: { title: 'إدارة الأعضاء', addNew: 'إضافة عضو جديد', search: 'بحث...', firstName: 'الاسم الأول', lastName: 'اسم العائلة' },
       payments: { title: 'إدارة المدفوعات', amount: 'المبلغ', donate: 'تبرع' }
@@ -97,9 +85,6 @@ const resources = {
         madeWith: 'Made with passion by Anna & Müco',
         noHousing: 'این سازمان مسکن یا مشاوره حقوقی ارائه نمی‌دهد.',
         supportCta: 'Support queer safety, dignity, and joy in Vienna with your donation.',
-        bankName: 'Têkosin LGBTIQ - Verein für LGBT',
-        iban: 'AT37 1700 0001 4101 1537',
-        bic: 'BIC: BFKKAT2K'
       }
     }
   },
@@ -114,9 +99,6 @@ const resources = {
         madeWith: 'Made with passion by Anna & Müco',
         noHousing: 'Esta ONG NO ofrece alojamiento ni consultas legales.',
         supportCta: 'Support queer safety, dignity, and joy in Vienna with your donation.',
-        bankName: 'Têkosin LGBTIQ - Verein für LGBT',
-        iban: 'AT37 1700 0001 4101 1537',
-        bic: 'BIC: BFKKAT2K'
       }
     }
   }

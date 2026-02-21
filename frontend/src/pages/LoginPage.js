@@ -122,7 +122,7 @@ const LoginPage = () => {
         </div>
 
         {/* Footer */}
-        <div className="text-center mt-6">
+        <div className="text-center mt-6 space-y-3">
           <p className="text-sm">
             <span className="animate-heartbeat inline-block">❤️</span>
             {' '}
@@ -132,6 +132,12 @@ const LoginPage = () => {
             {' '}
             <span className="animate-heartbeat inline-block">❤️</span>
           </p>
+          <div className="border-t border-tekosin-border/60 pt-3 space-y-1">
+            <p className="text-sm font-bold text-neon-cyan">{t('footer.supportCta')}</p>
+            <p className="text-xs text-gray-300">{t('footer.bankName')}</p>
+            <p className="text-xs text-gray-300">{t('footer.iban')}</p>
+            <p className="text-xs text-gray-300">{t('footer.bic')}</p>
+          </div>
         </div>
       </div>
     </div>

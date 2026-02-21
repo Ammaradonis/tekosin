@@ -28,7 +28,9 @@ app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
   crossOriginOpenerPolicy: false,   // PayPal popups require cross-origin window access
-  crossOriginResourcePolicy: false  // PayPal SDK loads cross-origin resources (iframes, scripts)
+  crossOriginResourcePolicy: false, // PayPal SDK loads cross-origin resources (iframes, scripts)
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' }, // PayPal CDN needs referrer
+  permittedCrossDomainPolicies: false  // Allow cross-domain PayPal resources
 }));
 app.use(cors({
   origin: function(origin, callback) { callback(null, true); },

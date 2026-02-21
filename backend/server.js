@@ -63,6 +63,18 @@ app.use(morgan(isProduction ? 'short' : 'combined'));
 // ── Static uploads ─────────────────────────────────────────────────────────
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// ── Database readiness guard (reject requests before DB is ready) ──────────
+app.use('/api', (req, res, next) => {
+  // Allow health check always
+  if (req.path === '/health') return next();
+  // Allow PayPal webhook always (must respond 200 immediately)
+  if (req.path === '/paypal/webhook') return next();
+  if (!dbReady) {
+    return res.status(503).json({ error: 'Server is starting up. Please try again in a few seconds.' });
+  }
+  next();
+});
+
 // ── API Routes ─────────────────────────────────────────────────────────────
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
@@ -131,6 +143,29 @@ const connectDB = async (maxRetries = 10, baseDelay = 3000) => {
       console.log('✅ Database connected successfully');
       await db.sequelize.sync({ alter: true });
       console.log('✅ Database tables synced');
+
+      // Seed default admin user if none exists
+      try {
+        const bcrypt = require('bcryptjs');
+        const userCount = await db.User.count();
+        if (userCount === 0) {
+          const hashedPassword = await bcrypt.hash('Admin123!', 12);
+          await db.User.create({
+            email: 'admin@tekosin.org',
+            password: hashedPassword,
+            firstName: 'Admin',
+            lastName: 'TÊKOȘÎN',
+            role: 'super_admin',
+            isActive: true,
+            gdprConsent: true,
+            gdprConsentDate: new Date()
+          });
+          console.log('✅ Default admin user created (admin@tekosin.org / Admin123!)');
+        }
+      } catch (seedErr) {
+        console.error('⚠️ Admin seed error (non-fatal):', seedErr.message);
+      }
+
       dbReady = true;
       return;
     } catch (error) {

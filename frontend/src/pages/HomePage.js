@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import api from '../services/api';
 
-const URGENT_COUNTDOWN_SECONDS = 2 * 60 + 19;
+const URGENT_COUNTDOWN_SECONDS = 2 * 60 + 19; // 139 seconds
 
 const PayPalButtonWrapper = ({ amount, description, onSuccess, onError }) => {
   const containerRef = useRef(null);
@@ -63,8 +63,7 @@ const HomePage = () => {
   const [donateDesc, setDonateDesc] = useState('TÊKOȘÎN Donation');
   const [paymentSuccess, setPaymentSuccess] = useState('');
   const [paymentError, setPaymentError] = useState('');
-  const [nowMs, setNowMs] = useState(Date.now());
-  const deadlineRef = useRef(Date.now() + URGENT_COUNTDOWN_SECONDS * 1000);
+  const [secondsLeft, setSecondsLeft] = useState(URGENT_COUNTDOWN_SECONDS);
 
   const bannerClass = useMemo(() => {
     if (scrollY > 1400) return 'from-orange-500 via-red-500 to-pink-500';
@@ -73,7 +72,9 @@ const HomePage = () => {
   }, [scrollY]);
 
   useEffect(() => {
-    const interval = setInterval(() => setNowMs(Date.now()), 1000);
+    const interval = setInterval(() => {
+      setSecondsLeft(prev => (prev > 0 ? prev - 1 : URGENT_COUNTDOWN_SECONDS));
+    }, 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -84,8 +85,6 @@ const HomePage = () => {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  const remainingMs = Math.max(0, deadlineRef.current - nowMs);
-  const secondsLeft = Math.floor(remainingMs / 1000);
   const minutes = String(Math.floor(secondsLeft / 60)).padStart(2, '0');
   const seconds = String(secondsLeft % 60).padStart(2, '0');
 
@@ -200,15 +199,15 @@ const HomePage = () => {
                   onChange={(e) => setDonateAmount(e.target.value)}
                   className="neon-input text-xl font-black text-center"
                 />
-                <div className="mt-2 grid grid-cols-4 gap-2">
-                  {[10, 25, 50, 100].map((amt) => (
+                <div className="mt-2 grid grid-cols-3 gap-2">
+                  {[5, 10, 25, 50, 100, 250].map((amt) => (
                     <button
                       key={amt}
                       type="button"
                       onClick={() => setDonateAmount(String(amt))}
                       className={`px-2 py-1 rounded-lg text-xs font-bold ${parseFloat(donateAmount) === amt ? 'bg-neon-pink/30 text-neon-pink border border-neon-pink/50' : 'bg-neon-pink/10 text-neon-pink'}`}
                     >
-                      EUR {amt}
+                      €{amt}
                     </button>
                   ))}
                 </div>

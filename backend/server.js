@@ -24,7 +24,12 @@ let dbReady = false;
 // Trust first proxy hop (Railway / any reverse proxy)
 if (isProduction) app.set('trust proxy', 1);
 
-app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: false,   // PayPal popups require cross-origin window access
+  crossOriginResourcePolicy: false  // PayPal SDK loads cross-origin resources (iframes, scripts)
+}));
 app.use(cors({
   origin: function(origin, callback) { callback(null, true); },
   credentials: true,
@@ -143,6 +148,23 @@ const connectDB = async (maxRetries = 10, baseDelay = 3000) => {
       console.log('✅ Database connected successfully');
       await db.sequelize.sync({ alter: true });
       console.log('✅ Database tables synced');
+
+      // Drop broken trigger that references snake_case "updated_at" instead of Sequelize's "updatedAt"
+      try {
+        const tables = await db.sequelize.getQueryInterface().showAllTables();
+        for (const table of tables) {
+          await db.sequelize.query(
+            `DROP TRIGGER IF EXISTS set_updated_at ON "${table}";`
+          ).catch(() => {});
+        }
+        // Also drop the function itself
+        await db.sequelize.query(
+          `DROP FUNCTION IF EXISTS trigger_set_updated_at() CASCADE;`
+        ).catch(() => {});
+        console.log('✅ Cleaned up legacy updated_at triggers');
+      } catch (triggerErr) {
+        console.error('⚠️ Trigger cleanup error (non-fatal):', triggerErr.message);
+      }
 
       // Seed default admin user if none exists
       try {

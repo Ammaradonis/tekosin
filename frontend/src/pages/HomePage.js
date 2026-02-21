@@ -6,9 +6,19 @@ const URGENT_COUNTDOWN_SECONDS = 2 * 60 + 19; // 139 seconds
 const PayPalButtonWrapper = ({ amount, description, onSuccess, onError }) => {
   const containerRef = useRef(null);
   const renderedRef = useRef(false);
+  const [sdkReady, setSdkReady] = useState(!!window.paypal_sdk);
+
+  // Wait for PayPal SDK to load (it's deferred)
+  useEffect(() => {
+    if (window.paypal_sdk) { setSdkReady(true); return; }
+    const check = setInterval(() => {
+      if (window.paypal_sdk) { setSdkReady(true); clearInterval(check); }
+    }, 500);
+    return () => clearInterval(check);
+  }, []);
 
   useEffect(() => {
-    if (!window.paypal_sdk || !containerRef.current || renderedRef.current) return;
+    if (!sdkReady || !window.paypal_sdk || !containerRef.current || renderedRef.current) return;
     if (!amount || parseFloat(amount) < 0.01) return;
 
     renderedRef.current = true;
@@ -45,7 +55,7 @@ const PayPalButtonWrapper = ({ amount, description, onSuccess, onError }) => {
     return () => {
       renderedRef.current = false;
     };
-  }, [amount, description, onSuccess, onError]);
+  }, [sdkReady, amount, description, onSuccess, onError]);
 
   return <div ref={containerRef} className="min-h-[50px]" />;
 };

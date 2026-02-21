@@ -172,3 +172,39 @@ body {
 .table-row:hover {
   background: rgba(255, 0, 255, 0.05);
 }
+
+.ticker-wrap {
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.ticker-track {
+  display: inline-block;
+  min-width: 200%;
+  padding: 8px 0;
+  animation: tickerMove 16s linear infinite;
+}
+
+@keyframes tickerMove {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.pride-overlay {
+  background:
+    linear-gradient(180deg,
+      rgba(228, 3, 3, 0.12) 0%,
+      rgba(255, 140, 0, 0.1) 16%,
+      rgba(255, 237, 0, 0.08) 32%,
+      rgba(0, 128, 38, 0.08) 48%,
+      rgba(36, 64, 142, 0.1) 64%,
+      rgba(115, 41, 130, 0.12) 80%,
+      rgba(228, 3, 3, 0.1) 100%);
+  mix-blend-mode: screen;
+  animation: pridePulse 6s ease-in-out infinite;
+}
+
+@keyframes pridePulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.6; }
+}

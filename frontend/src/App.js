@@ -5,6 +5,7 @@ import { Toaster } from 'react-hot-toast';
 import { fetchMe } from './store/authSlice';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
+import HomePage from './pages/HomePage';
 import DashboardPage from './pages/DashboardPage';
 import MembersPage from './pages/MembersPage';
 import MemberDetailPage from './pages/MemberDetailPage';
@@ -21,7 +22,7 @@ import SettingsPage from './pages/SettingsPage';
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated } = useSelector((state) => state.auth);
-  return isAuthenticated ? children : <Navigate to="/login" replace />;
+  return isAuthenticated ? children : <Navigate to="/portal" replace />;
 };
 
 function App() {
@@ -48,24 +49,25 @@ function App() {
         }}
       />
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="members" element={<MembersPage />} />
-          <Route path="members/:id" element={<MemberDetailPage />} />
-          <Route path="payments" element={<PaymentsPage />} />
-          <Route path="users" element={<UsersPage />} />
-          <Route path="events" element={<EventsPage />} />
-          <Route path="content" element={<ContentPage />} />
-          <Route path="volunteers" element={<VolunteersPage />} />
-          <Route path="notifications" element={<NotificationsPage />} />
-          <Route path="audit" element={<AuditPage />} />
-          <Route path="reports" element={<ReportsPage />} />
-          <Route path="newsletters" element={<NewslettersPage />} />
-          <Route path="settings" element={<SettingsPage />} />
+        <Route path="/" element={<HomePage />} />
+        <Route path="/portal" element={<LoginPage />} />
+        <Route path="/login" element={<Navigate to="/portal" replace />} />
+        <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/members" element={<MembersPage />} />
+          <Route path="/members/:id" element={<MemberDetailPage />} />
+          <Route path="/payments" element={<PaymentsPage />} />
+          <Route path="/users" element={<UsersPage />} />
+          <Route path="/events" element={<EventsPage />} />
+          <Route path="/content" element={<ContentPage />} />
+          <Route path="/volunteers" element={<VolunteersPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
+          <Route path="/audit" element={<AuditPage />} />
+          <Route path="/reports" element={<ReportsPage />} />
+          <Route path="/newsletters" element={<NewslettersPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
         </Route>
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   );

@@ -11,6 +11,7 @@ const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
 const path = require('path');
+const fs = require('fs');
 const db = require('./models');
 
 const isProduction = process.env.NODE_ENV === 'production';
@@ -94,11 +95,26 @@ app.all('/api/*', (req, res) => {
 
 // ── Serve frontend (production only — built React app in ./public) ─────────
 if (isProduction) {
-  const staticPath = path.join(__dirname, 'public');
-  app.use(express.static(staticPath));
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(staticPath, 'index.html'));
-  });
+  const staticCandidates = [
+    process.env.FRONTEND_BUILD_PATH,
+    path.join(__dirname, 'public'),
+    path.join(__dirname, '..', 'frontend', 'build')
+  ].filter(Boolean);
+
+  const staticPath = staticCandidates.find((candidate) => fs.existsSync(path.join(candidate, 'index.html')));
+
+  if (staticPath) {
+    console.log(`✅ Serving frontend from: ${staticPath}`);
+    app.use(express.static(staticPath));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(staticPath, 'index.html'));
+    });
+  } else {
+    console.error('❌ Frontend build not found. Checked:', staticCandidates);
+    app.get('*', (req, res) => {
+      res.status(503).send('Frontend build not found on server. Please deploy frontend build artifacts.');
+    });
+  }
 }
 
 // ── Error handler ──────────────────────────────────────────────────────────

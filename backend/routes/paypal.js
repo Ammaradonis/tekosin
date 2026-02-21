@@ -147,6 +147,148 @@ async function isDuplicateWebhookEvent(eventId) {
 // ONE-TIME PAYMENTS
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// POST /api/paypal/public/create-order
+// Public donation endpoint for homepage (no portal auth required)
+router.post('/public/create-order', async (req, res) => {
+  try {
+    const { amount, description } = req.body;
+
+    const parsedAmount = parseFloat(amount);
+    if (!parsedAmount || parsedAmount < 0.01 || parsedAmount > 99999.99) {
+      return res.status(400).json({ error: 'Amount must be between €0.01 and €99,999.99' });
+    }
+
+    const safeDescription = description || 'TÊKOȘÎN Donation';
+    const orderData = {
+      intent: 'CAPTURE',
+      purchase_units: [{
+        amount: {
+          currency_code: 'EUR',
+          value: parsedAmount.toFixed(2)
+        },
+        description: safeDescription,
+        custom_id: `tekosin_public_${Date.now()}`
+      }],
+      payment_source: {
+        paypal: {
+          experience_context: {
+            brand_name: 'TÊKOȘÎN',
+            locale: 'de-AT',
+            landing_page: 'NO_PREFERENCE',
+            user_action: 'PAY_NOW',
+            payment_method_preference: 'IMMEDIATE_PAYMENT_REQUIRED'
+          }
+        }
+      }
+    };
+
+    const response = await paypalRequest('post', '/v2/checkout/orders', orderData);
+
+    const payment = await db.Payment.create({
+      memberId: null,
+      paypalOrderId: response.data.id,
+      amount: parsedAmount,
+      currency: 'EUR',
+      type: 'one_time',
+      status: 'pending',
+      description: safeDescription,
+      metadata: { source: 'homepage_public', paypalOrderStatus: response.data.status, links: response.data.links }
+    });
+
+    await db.PaypalTransaction.create({
+      paypalOrderId: response.data.id,
+      paymentId: payment.id,
+      memberId: null,
+      userId: null,
+      type: 'order',
+      status: response.data.status,
+      amount: parsedAmount,
+      currency: 'EUR',
+      description: `${safeDescription} (public)`,
+      rawPayload: response.data,
+      ipAddress: req.ip
+    });
+
+    console.log(`[PayPal] Public order created: ${response.data.id} for €${parsedAmount.toFixed(2)}`);
+    res.json({ orderId: response.data.id, paymentId: payment.id, status: response.data.status });
+  } catch (error) {
+    console.error('[PayPal] public create-order FAILED:', error.response?.data || error.message);
+    await logPaypalError('public-create-order', error, { body: req.body, ip: req.ip });
+    res.status(500).json({ error: 'Network error. Please try again.', details: error.response?.data?.message });
+  }
+});
+
+// POST /api/paypal/public/capture-order
+// Public donation endpoint for homepage (no portal auth required)
+router.post('/public/capture-order', async (req, res) => {
+  try {
+    const { orderId } = req.body;
+    if (!orderId) return res.status(400).json({ error: 'Order ID required' });
+
+    const existingCapture = await db.PaypalTransaction.findOne({
+      where: { paypalOrderId: orderId, type: 'capture', status: 'COMPLETED' }
+    });
+    if (existingCapture) {
+      return res.json({ status: 'already_captured', captureId: existingCapture.paypalCaptureId });
+    }
+
+    const payment = await db.Payment.findOne({ where: { paypalOrderId: orderId } });
+    if (!payment) return res.status(404).json({ error: 'Order not found in our records' });
+
+    const response = await paypalRequest('post', `/v2/checkout/orders/${orderId}/capture`);
+    const captureData = response.data;
+    const capture = captureData.purchase_units?.[0]?.payments?.captures?.[0];
+    const capturedAmount = parseFloat(capture?.amount?.value || 0);
+    const capturedCurrency = capture?.amount?.currency_code;
+
+    await payment.update({
+      status: 'completed',
+      payerEmail: captureData.payer?.email_address,
+      payerName: `${captureData.payer?.name?.given_name || ''} ${captureData.payer?.name?.surname || ''}`.trim(),
+      ipnData: captureData,
+      metadata: {
+        ...payment.metadata,
+        captureId: capture?.id,
+        captureStatus: capture?.status,
+        capturedAmount,
+        capturedCurrency,
+        payerCountry: captureData.payer?.address?.country_code
+      }
+    });
+
+    await db.PaypalTransaction.create({
+      paypalOrderId: orderId,
+      paypalCaptureId: capture?.id,
+      paymentId: payment.id,
+      memberId: payment.memberId,
+      userId: null,
+      type: 'capture',
+      status: capture?.status || 'COMPLETED',
+      amount: capturedAmount,
+      currency: capturedCurrency || 'EUR',
+      payerEmail: captureData.payer?.email_address,
+      payerName: `${captureData.payer?.name?.given_name || ''} ${captureData.payer?.name?.surname || ''}`.trim(),
+      description: `Captured public order ${orderId}`,
+      rawPayload: captureData,
+      ipAddress: req.ip
+    });
+
+    console.log(`[PayPal] Public order captured: ${orderId} -> capture ${capture?.id} for €${capturedAmount}`);
+    res.json({
+      status: 'completed',
+      captureId: capture?.id,
+      amount: capturedAmount,
+      currency: capturedCurrency,
+      payer: captureData.payer,
+      paymentId: payment.id
+    });
+  } catch (error) {
+    console.error('[PayPal] public capture-order FAILED:', error.response?.data || error.message);
+    await logPaypalError('public-capture-order', error, { body: req.body, ip: req.ip });
+    res.status(500).json({ error: 'Network error. Please try again.', details: error.response?.data?.message });
+  }
+});
+
 // POST /api/paypal/create-order
 router.post('/create-order', authenticateToken, async (req, res) => {
   try {
